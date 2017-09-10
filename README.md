@@ -28,8 +28,8 @@ There is some error handling but not much:
 - If it detects an open order for any ETF it's configured to buy, it'll stop.
 - If it any orders fail, it'll stop.
 
-It has a pretty simple algorithm for rebalancing:
-- Go though each of the ETFs it's been configured to buy and calculate the sum of the differences of target ratio to the ratio if that ETF was bought.
+It uses a pretty simple algorithm for rebalancing:
+- Go through each of the ETFs it's been configured to buy and calculate the sum of the differences of target ratio to the ratio if that ETF was bought. (sum((target-actual)^2))
 - Choose the ETF with the lowest sum of differences.
 - If you can't afford to buy that ETF then stop, else repeat.
 - Buy all ETFs that have been chosen.
@@ -38,6 +38,6 @@ It's not efficient but it handles many edge cases nicely and is pretty simple.
 
 It will place a Day Limit order for the current ask price.
 
-It can also kind of do dollar cost averaging by modifying DOLLAR_COST_AVERAGE.
+It can also do a kind of dollar cost averaging by modifying DOLLAR_COST_AVERAGE.
 
 It will just use currentCash / DOLLAR_COST_AVERAGE every time you run the script.
