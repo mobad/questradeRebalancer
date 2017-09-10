@@ -1,27 +1,35 @@
 # questradeRebalancer
 Script to buy ETFs using available cash and rebalance according to configured ratios.
 
-This is a WIP, use at your own risk!
+# This is a WIP, use at your own risk!
+# This will spend all the money in an account to buy ETFs!!!
 
-This will use all your money in that account to buy ETFs!!!
+This uses my fork of QuestradeAPI_PythonWrapper https://github.com/mobad/QuestradeAPI_PythonWrapper
 
-This uses my fork of QuestradeAPI_PythonWrapper.
+## Configuration:
+You need to create a Personal Api key on Questrade and make sure to enable all three permissions if you want it to make trades.
+
+Put this api key in a file called ~/.questrade_token.json in the format of:
+
+>{"access_token":"","api_server":"https:\\/\\/api01.iq.questrade.com\\/","expires_in":1800,"refresh_token":"YOUR_TOKEN_HERE","token_type":"Bearer"}
 
 To configure which ETFs and the ratios then modify getSymbolTargetRatiosForAccount and make sure they add to 100.
 
-Usage:
+## Usage:
 
-questradeRebalancer.py listAccounts to list accounts
+> questradeRebalancer.py listAccounts to list accounts
 
 Then, to list what it would buy:
 
-questradeRebalancer.py showOrders accountType accountNumber
+> questradeRebalancer.py showOrders accountType accountNumber
 
-eg. questradeRebalancer.py showOrders Margin 12345678
+> eg. questradeRebalancer.py showOrders Margin 12345678
 
 And to actually buy:
 
-questradeRebalancer.py spendAllMyMoney accountType accountNumber
+> questradeRebalancer.py spendAllMyMoney accountType accountNumber
+
+## Limitations:
 
 There is some error handling but not much:
 - If it can't get a quote of an ETF, it'll stop. (Likely exchange is just closed.)
@@ -34,10 +42,12 @@ It uses a pretty simple algorithm for rebalancing:
 - If you can't afford to buy that ETF then stop, else repeat.
 - Buy all ETFs that have been chosen.
 
-It's not efficient but it handles many edge cases nicely and is pretty simple.
+It's not efficient but it handles many edge cases nicely and is simple and easy to understand.
 
 It will place a Day Limit order for the current ask price.
 
 It can also do a kind of dollar cost averaging by modifying DOLLAR_COST_AVERAGE.
 
 It will just use currentCash / DOLLAR_COST_AVERAGE every time you run the script.
+
+It only handles CAD cash and won't touch other currencies.
