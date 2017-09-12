@@ -116,7 +116,7 @@ def placeBuyOrders(accountId, symbolIdDict, buyOrders, symbolQuotes):
     
     return True
 
-def rebalance(accountId, symbolTargetRatios, buyMode):
+def rebalance(accountId, symbolTargetRatios, shouldPlaceOrders, shouldConfirmOrders):
     symbols = symbolTargetRatios.keys()
 
     cashTotal = getAvailableCash(accountId) / DOLLAR_COST_AVERAGE
@@ -128,24 +128,48 @@ def rebalance(accountId, symbolTargetRatios, buyMode):
     for symbol, quote in symbolQuotes.iteritems():
         if not quote:
             print "Something went wrong getting the quote of {0}, stopping.".format(symbol)
+            print "Most likely the exchange is just closed."
             return False 
 
     buyOrders = getBuyOrders(cashTotal, positionsTotal, symbolTargetRatios, symbolQuotes, positionValues)
-    if (buyMode):
-        return placeBuyOrders(accountId, symbolIdDict, buyOrders, symbolQuotes)
-    else:
-        for symbol, toBuy in buyOrders.iteritems():
-            print "Would place order for {0} x {1} @ {2} on account {3}".format(
-                toBuy, symbol, symbolQuotes[symbol], accountId)
-        return True
+    orderPriceSum = 0.0
+    feeSum = 0.0
+    for symbol, toBuy in buyOrders.iteritems():
+        orderPrice = toBuy * symbolQuotes[symbol]
+        orderPriceSum += orderPrice
+        fee = toBuy * QUESTRADE_ECN
+        feeSum += fee
 
-parser = argparse.ArgumentParser(description='Buy some ETFs')
+        print "Will place order for {0} x {1} @ {2} on account {3} costing ${4} CAD and ${5} CAD in ECN fees".format(
+            toBuy, symbol, symbolQuotes[symbol], accountId, orderPrice, fee)
+
+    # Should never happen but just in case...
+    totalCost = orderPriceSum + feeSum
+    if totalCost > cashTotal:
+        print "Order total cost of ${0} CAD is higher than total cash of ${1} CAD, stopping".format(totalCost, cashTotal)
+        return False
+
+    print "Total cost is ${0} CAD and ${1} CAD in fees, leaving you with ${2} CAD in cash".format(orderPriceSum, feeSum, cashTotal - totalCost)
+
+    if shouldPlaceOrders:
+        if shouldConfirmOrders:
+            confirmationText = raw_input("Please type CONFIRM in all CAPS to place orders: ")
+            if confirmationText.strip() != 'CONFIRM':
+                print "Confirmation was not equal to CONFIRM, stopping."
+                return False
+
+        return placeBuyOrders(accountId, symbolIdDict, buyOrders, symbolQuotes)
+
+    return True
+
+parser = argparse.ArgumentParser(description='Buys ETFs according to the configured ratios')
 subparsers = parser.add_subparsers(dest='command')
 listAccounts = subparsers.add_parser('listAccounts', help='Lists your Questrade accounts')
 showOrders = subparsers.add_parser('showOrders', help='Shows the orders that would be made')
 showOrders.add_argument('accountType', help='The type of the account')
 showOrders.add_argument('accountNumber', help='The number of the account')
-placeOrders = subparsers.add_parser('spendAllMyMoney', help='WARNING will spend all your money!!! Places orders to rebalance your account')
+placeOrders = subparsers.add_parser('placeOrders', help='Places orders to rebalance your account')
+placeOrders.add_argument('--noConfirm', action='store_true', help='This will skip the place order confirmation and immediately place the orders')
 placeOrders.add_argument('accountType', help='The type of the account')
 placeOrders.add_argument('accountNumber', help='The number of the account')
 args = parser.parse_args()
@@ -156,14 +180,17 @@ if args.command == 'listAccounts':
         print acc['type'], acc['number']
         exit(0)
 else:
-    buyMode = args.command == 'spendAllMyMoney'
-
+    shouldPlaceOrders = args.command == 'placeOrders'
+    shouldConfirmOrders = True
+    if shouldPlaceOrders:
+        shouldConfirmOrders = not args.noConfirm
     accountType = args.accountType
     accountNumber = args.accountNumber
-    if rebalance(accountNumber, getSymbolTargetRatiosForAccount(accountType), buyMode):
-        if buyMode:
-            print "All orders on account {0} were placed successfully.".format(accountNumber)
-        exit(0)
-    else:
-        print "There was a problem placing orders on account {0}, stopping.".format(accountNumber)
-        exit(1)
+
+    success = rebalance(
+        accountNumber,
+        getSymbolTargetRatiosForAccount(accountType),
+        shouldPlaceOrders,
+        shouldConfirmOrders)
+        
+    exit(not success)
