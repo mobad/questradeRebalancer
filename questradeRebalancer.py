@@ -12,6 +12,7 @@ QUESTRADE_ECN = 0.0035
 DOLLAR_COST_AVERAGE = 1.0
 
 def getSymbolTargetRatiosForAccount(accountType):
+    # Please make sure each account adds to 100 or this script will not work correctly!
     return { 'Margin' : { 'VCN.TO': 30, 'XUU.TO': 30, 'XEF.TO': 23, 'XEC.TO': 7, 'ZDB.TO': 10 },
              'TFSA'   : { 'VCN.TO': 30, 'XUU.TO': 30, 'XEF.TO': 23, 'XEC.TO': 7, 'ZAG.TO': 10 },
              'RRSP'   : { 'VCN.TO': 30, 'XUU.TO': 30, 'XEF.TO': 23, 'XEC.TO': 7, 'ZAG.TO': 10 } 
