@@ -8,6 +8,7 @@ Script to buy ETFs using available cash and rebalance according to configured ra
 - List your Questrade accounts
 - Per account rebalancing
 - Show the best orders to make to keep your account balanced using your remaining cash
+- Detech whether orders have already been created for the ETFs you've configured and not place any orders
 - Actually place those orders
 
 ## Configuration:
