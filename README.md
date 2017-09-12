@@ -12,7 +12,7 @@ Script to buy ETFs using available cash and rebalance according to configured ra
 ## Configuration:
 This uses my fork of QuestradeAPI_PythonWrapper https://github.com/mobad/QuestradeAPI_PythonWrapper and that will need to be installed and set up.
 
-You need to create a Personal Api key on Questrade and make sure to enable all three permissions if you want it to make trades.
+You need to create a Personal Api key on Questrade by following http://www.questrade.com/api/documentation/getting-started and make sure to enable all three permissions if you want it to make trades.
 
 If you never want the script to place any orders then I recommened not enabling the trading permission.
 
