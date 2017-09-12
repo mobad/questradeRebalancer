@@ -47,7 +47,7 @@ I haven't had a chance to test this with RRSP or TFSA accounts so it may not wor
 There is some error handling but not much:
 - If it can't get a quote of an ETF, it'll stop. (Likely exchange is just closed.)
 - If for some reason the total order cost exceeds what is in your cash account it will stop.
-- If it detects an open order for any ETF it's configured to buy, it'll stop.
+- If it detects an open order for any ETF it's configured to buy, it'll stop. Please take care that other open order won't interfere and go in to your margin.
 - If it any orders fail, it'll stop.
 
 It uses a pretty simple algorithm for rebalancing:
