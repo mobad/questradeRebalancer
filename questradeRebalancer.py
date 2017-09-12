@@ -132,6 +132,11 @@ def rebalance(accountId, symbolTargetRatios, shouldPlaceOrders, shouldConfirmOrd
             return False 
 
     buyOrders = getBuyOrders(cashTotal, positionsTotal, symbolTargetRatios, symbolQuotes, positionValues)
+
+    if len(buyOrders) == 0:
+        print "Not enough money to make any orders, stopping"
+        return True
+
     orderPriceSum = 0.0
     feeSum = 0.0
     for symbol, toBuy in buyOrders.iteritems():
