@@ -9,6 +9,8 @@ This uses my fork of QuestradeAPI_PythonWrapper https://github.com/mobad/Questra
 ## Configuration:
 You need to create a Personal Api key on Questrade and make sure to enable all three permissions if you want it to make trades.
 
+If you never want the script to place any orders then I recommened not enabling the trading permission.
+
 Put this api key in a file called ~/.questrade_token.json in the format of:
 
 >{"access_token":"","api_server":"https:\\/\\/api01.iq.questrade.com\\/","expires_in":1800,"refresh_token":"YOUR_TOKEN_HERE","token_type":"Bearer"}
@@ -27,12 +29,17 @@ Then, to list what it would buy:
 
 And to actually buy:
 
-> questradeRebalancer.py spendAllMyMoney accountType accountNumber
+> questradeRebalancer.py placeOrders accountType accountNumber
+
+Then type CONFIRM at the prompt to place the orders.
+
+You can use the --noConfirm option to skip the confirmation.
 
 ## Limitations:
 
 There is some error handling but not much:
 - If it can't get a quote of an ETF, it'll stop. (Likely exchange is just closed.)
+- If for some reason the total order cost exceeds what is in your cash account it will stop.
 - If it detects an open order for any ETF it's configured to buy, it'll stop.
 - If it any orders fail, it'll stop.
 
@@ -42,7 +49,7 @@ It uses a pretty simple algorithm for rebalancing:
 - If you can't afford to buy that ETF then stop, else repeat.
 - Buy all ETFs that have been chosen.
 
-It's not efficient but it handles many edge cases nicely and is simple and easy to understand.
+It's not an efficient algorithm but it handles many edge cases nicely and is simple and easy to understand.
 
 It will place a Day Limit order for the current ask price.
 
