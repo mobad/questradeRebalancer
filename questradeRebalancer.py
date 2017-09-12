@@ -140,7 +140,7 @@ def rebalance(accountId, symbolTargetRatios, shouldPlaceOrders, shouldConfirmOrd
         fee = toBuy * QUESTRADE_ECN
         feeSum += fee
 
-        print "Will place order for {0} x {1} @ {2} on account {3} costing ${4} CAD and ${5} CAD in ECN fees".format(
+        print "Will place a Day Limit order for {0} x {1} @ {2} on account {3} costing ${4} CAD and ${5} CAD in ECN fees".format(
             toBuy, symbol, symbolQuotes[symbol], accountId, orderPrice, fee)
 
     # Should never happen but just in case...
@@ -192,5 +192,5 @@ else:
         getSymbolTargetRatiosForAccount(accountType),
         shouldPlaceOrders,
         shouldConfirmOrders)
-        
+
     exit(not success)
