@@ -1,4 +1,4 @@
-# questradeRebalancer
+# Questrade Rebalancer
 Script to buy ETFs using available cash and rebalance according to configured ratios.
 
 # This is a WIP, use at your own risk!
