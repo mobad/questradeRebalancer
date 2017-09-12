@@ -41,6 +41,7 @@ Then type CONFIRM at the prompt to place the orders.
 You can use the --noConfirm option to skip the confirmation.
 
 ## Limitations:
+I haven't had a chance to test this with RRSP or TFSA accounts so it may not work.
 
 There is some error handling but not much:
 - If it can't get a quote of an ETF, it'll stop. (Likely exchange is just closed.)
