@@ -65,3 +65,6 @@ It can also do a kind of dollar cost averaging by modifying DOLLAR_COST_AVERAGE.
 It will just use currentCash / DOLLAR_COST_AVERAGE every time you run the script.
 
 It only handles CAD cash and won't touch other currencies.
+
+
+[![Donate](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=YQM3NLUHH9JA2)
