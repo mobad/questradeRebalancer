@@ -1,172 +1,216 @@
-#!/bin/env python2
+#!/bin/env python3
 
 import argparse
 from sys import float_info
-from sys import argv
-from questrade.api import account
-from questrade.api import api_utils
-from questrade.api import market
-from questrade.api.enumerations import OrderStateFilterType
+from QuestradeApi import QuestradeApi
+
+AUTH_TOKEN = ""
 
 QUESTRADE_ECN = 0.0035
 DOLLAR_COST_AVERAGE = 1.0
 
-def getSymbolTargetRatiosForAccount(accountType):
-    # Please make sure each account adds to 100 or this script will not work correctly!
-    return { 'Margin' : { 'VCN.TO': 30, 'XUU.TO': 30, 'XEF.TO': 23, 'XEC.TO': 7, 'ZDB.TO': 10 },
-             'TFSA'   : { 'VCN.TO': 30, 'XUU.TO': 30, 'XEF.TO': 23, 'XEC.TO': 7, 'ZAG.TO': 10 },
-             'RRSP'   : { 'VCN.TO': 30, 'XUU.TO': 30, 'XEF.TO': 23, 'XEC.TO': 7, 'ZAG.TO': 10 } 
-           }[accountType]
+questrade_api = QuestradeApi(AUTH_TOKEN)
+questrade_api.setup()
 
-def getAvailableCash(accountId):
-    balances = account.accounts_balances(accountId)
-    cashBalances = balances['perCurrencyBalances']
-    for currency in cashBalances:
-        if (currency['currency'] == 'CAD'):
+
+def get_symbol_target_rations_for_account(account_type):
+    # Please make sure each account adds to 100 or this script will not work correctly!
+    ratios = {
+        'Margin': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
+        'TFSA': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
+        'RRSP': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20}
+    }
+    return ratios[account_type]
+
+
+def get_available_cash(account_id):
+    balances = questrade_api.get_balances(account_id)
+    cash_balances = balances['perCurrencyBalances']
+    for currency in cash_balances:
+        if currency['currency'] == 'CAD':
             return currency['cash']
     return None
 
-def getPositionsValues(accountId, symbols):
-    positionValues = {}
-    for symbol in symbols:
-        positionValues[symbol] = 0
 
-    positionsTotal = 0
-    positions = account.accounts_positions(accountId)
+def get_positions_value(account_id, symbols):
+    position_values = {}
+    for symbol in symbols:
+        position_values[symbol] = 0
+
+    positions_total = 0
+    positions = questrade_api.get_positions(account_id)
     for position in positions['positions']:
         symbol = position['symbol']
-        if symbol in positionValues:
+        if symbol in position_values:
             value = position['currentMarketValue']
-            positionValues[symbol] = value
-            positionsTotal += value
+            position_values[symbol] = value
+            positions_total += value
 
-    return (positionsTotal, positionValues)
+    return positions_total, position_values
 
-def getInternalSymbols(symbols):
-    symbolIdDict = {}
+
+def get_internal_symbols(symbols):
+    symbol_id_dicts = {}
     for symbol in symbols:
-        symbolId = int(api_utils.lookup_symbol_id(symbol))
-        symbolIdDict[symbol] = symbolId
+        symbol_id = questrade_api.get_id_from_symbol_name(symbol)
+        symbol_id_dicts[symbol] = symbol_id
 
-    return symbolIdDict
+    return symbol_id_dicts
 
-def getSymbolQuotes(symbolIds):
-    symbolQuotes = {}
-    quotes = market.markets_quotes(symbolIds)
+
+def get_symbol_quotes(symbol_ids):
+    symbol_quotes = {}
+    quotes = questrade_api.get_market_quotes(symbol_ids)
     for quote in quotes['quotes']:
-        symbolQuotes[quote['symbol']] = quote['askPrice']
-    
-    return symbolQuotes
+        symbol_quotes[quote['symbol']] = quote['askPrice']
 
-def getSymbolOfSmallestTargetRatioDifferences(positionsTotal, symbolTargetRatios, symbolQuotes, positionValues):
-    minMagDiff = float_info.max
-    minSymbol = None
+    return symbol_quotes
 
-    for selectedSymbol in symbolTargetRatios.keys():
-        total = positionsTotal + symbolQuotes[selectedSymbol]
 
-        sumOfMagDiff = 0
-        for symbol, positionValue in positionValues.iteritems():
-            value = positionValue
-            if selectedSymbol == symbol:
-                value += symbolQuotes[selectedSymbol]
-            diff = (symbolTargetRatios[symbol] / 100.0) - (value / total)
-            sumOfMagDiff += diff * diff
+def get_symbol_of_smallest_target_ratio_differences(positions_total,
+                                                    symbol_target_ratios,
+                                                    symbol_quotes,
+                                                    position_values):
+    min_mag_diff = float_info.max
+    min_symbol = None
 
-        if sumOfMagDiff < minMagDiff:
-            minMagDiff = sumOfMagDiff
-            minSymbol = selectedSymbol
+    for selected_symbol in symbol_target_ratios.keys():
+        total = positions_total + symbol_quotes[selected_symbol]
 
-    return minSymbol
+        sum_of_mag_diff = 0
+        for symbol, position_value in position_values.items():
+            value = position_value
+            if selected_symbol == symbol:
+                value += symbol_quotes[selected_symbol]
+            diff = (symbol_target_ratios[symbol] / 100.0) - (value / total)
+            sum_of_mag_diff += diff * diff
 
-def getBuyOrders(cashTotal, positionsTotal, symbolTargetRatios, symbolQuotes, positionValues):
-    buyOrders = {}
-    remaining = cashTotal
-    newPositionsTotal = positionsTotal
- 
+        if sum_of_mag_diff < min_mag_diff:
+            min_mag_diff = sum_of_mag_diff
+            min_symbol = selected_symbol
+
+    return min_symbol
+
+
+def get_buy_orders(cash_total, positions_total, symbol_target_ratios,
+                   symbol_quotes, position_values):
+    buy_orders = {}
+    remaining = cash_total
+    new_positions_total = positions_total
+
     while remaining > QUESTRADE_ECN:
         # Buy the stock which will produce the smallest difference in ratios
-        symbol = getSymbolOfSmallestTargetRatioDifferences(
-            newPositionsTotal, symbolTargetRatios, symbolQuotes, positionValues)
-        
+        symbol = get_symbol_of_smallest_target_ratio_differences(
+            new_positions_total, symbol_target_ratios,
+            symbol_quotes, position_values)
         # If we can't afford the optimum stock then stop
-        if not symbol or (symbolQuotes[symbol] + QUESTRADE_ECN) > remaining:
+        if not symbol or (symbol_quotes[symbol] + QUESTRADE_ECN) > remaining:
             break
 
-        buyOrders[symbol] = buyOrders.get(symbol, 0) + 1
-        remaining -= symbolQuotes[symbol] + QUESTRADE_ECN
-        newPositionsTotal += symbolQuotes[symbol]
-        positionValues[symbol] += symbolQuotes[symbol]
+        buy_orders[symbol] = buy_orders.get(symbol, 0) + 1
+        remaining -= symbol_quotes[symbol] + QUESTRADE_ECN
+        new_positions_total += symbol_quotes[symbol]
+        position_values[symbol] += symbol_quotes[symbol]
 
-    return buyOrders
+    return buy_orders
 
-def placeBuyOrders(accountId, symbolIdDict, buyOrders, symbolQuotes):
-    openOrders = account.accounts_orders(accountId, state_filter=OrderStateFilterType.Open)
-    for openOrder in openOrders['orders']:
-        if openOrder['symbol'] in buyOrders:
-            print "There is an open order for {0} on account {1}, stopping.".format(openOrder['symbol'], accountId)
+
+def place_buy_orders(account_id, symbol_id_dict, buy_orders, symbol_quotes):
+    open_orders = questrade_api.get_orders(account_id, stateFilter="Open")
+    for open_order in open_orders['orders']:
+        if open_order['symbol'] in buy_orders:
+            msg = "There is an open order for {} on account {}. stopping."
+            msg.format(open_order['symbol'], account_id)
+            print(msg)
             return False
 
-    for symbol, toBuy in buyOrders.iteritems():
-        order = account.accounts_place_order(accountId, symbolIdDict[symbol], toBuy, symbolQuotes[symbol])['orders'][0]
+    for symbol, to_buy in buy_orders.items():
+        symbol_id = symbol_id_dict[symbol]
+        symbol_quote = symbol_quotes[symbol]
+        order = questrade_api.place_order(
+            account_id, symbol_id, to_buy, symbol_quote)['orders'][0]
         if order['rejectionReason'] != '':
-            print "Order for {0} x {1} @ {2} on account {3} was rejected for reason '{4}', stopping.".format(
-                toBuy, symbol, symbolQuotes[symbol], accountId, order['rejectionReason'])
+            reject_reason = order['rejectionReason']
+            msg = "Order for {} x {} @ {} on account {} was rejected for " + \
+                  "reason {}, stopping."
+            msg = msg.format(
+                to_buy, symbol, symbol_quote, account_id, reject_reason)
+            print(msg)
             return False
-        print "Order for {0} x {1} @ {2} on account {3} was placed successfully.".format(toBuy, symbol, symbolQuotes[symbol], accountId)
-    
+        msg = "Order for {} x {} @ {} on account {} was placed successfully."
+        msg = msg.format(to_buy, symbol, symbol_quote, account_id)
+        print(msg)
+
     return True
 
-def rebalance(accountId, symbolTargetRatios, shouldPlaceOrders, shouldConfirmOrders):
-    symbols = symbolTargetRatios.keys()
 
-    cashTotal = getAvailableCash(accountId) / DOLLAR_COST_AVERAGE
+def rebalance(account_id, symbol_target_ratios,
+              should_place_orders, should_confirm_orders):
+    symbols = symbol_target_ratios.keys()
 
-    symbolIdDict = getInternalSymbols(symbols)
-    positionsTotal, positionValues = getPositionsValues(accountId, symbols)
+    cash_total = get_available_cash(account_id) / DOLLAR_COST_AVERAGE
 
-    symbolQuotes = getSymbolQuotes(symbolIdDict.values())
-    for symbol, quote in symbolQuotes.iteritems():
+    symbol_id_dict = get_internal_symbols(symbols)
+    positions_total, position_values = get_positions_value(account_id, symbols)
+
+    symbol_quotes = get_symbol_quotes(list(symbol_id_dict.values()))
+    for symbol, quote in symbol_quotes.items():
         if not quote:
-            print "Something went wrong getting the quote of {0}, stopping.".format(symbol)
-            print "Most likely the exchange is just closed."
+            msg = "Something went wrong getting the quote of {}, stopping."
+            msg = msg.format(symbol)
+            print(msg)
+            print("Most likely the exchange is just closed.")
             return False 
 
-    buyOrders = getBuyOrders(cashTotal, positionsTotal, symbolTargetRatios, symbolQuotes, positionValues)
+    buy_orders = get_buy_orders(cash_total, positions_total,
+                                symbol_target_ratios, symbol_quotes,
+                                position_values)
 
-    if len(buyOrders) == 0:
-        print "Not enough money to make any orders, stopping"
+    if len(buy_orders) == 0:
+        print("Not enough money to make any orders, stopping")
         return True
 
-    orderPriceSum = 0.0
-    feeSum = 0.0
-    for symbol, toBuy in buyOrders.iteritems():
-        orderPrice = toBuy * symbolQuotes[symbol]
-        orderPriceSum += orderPrice
-        fee = toBuy * QUESTRADE_ECN
-        feeSum += fee
+    order_price_sum = 0.0
+    fee_sum = 0.0
+    for symbol, to_buy in buy_orders.items():
+        order_price = to_buy * symbol_quotes[symbol]
+        order_price_sum += order_price
+        fee = to_buy * QUESTRADE_ECN
+        fee_sum += fee
 
-        print "Will place a Day Limit order for {0} x {1} @ {2} on account {3} costing ${4} CAD and ${5} CAD in ECN fees".format(
-            toBuy, symbol, symbolQuotes[symbol], accountId, orderPrice, fee)
+        msg = "Will place a Day Limit order for {} x {} @ {} on account " + \
+              "{} costing ${} CAD and ${} CAD in ECN fees"
+        msg = msg.format(to_buy, symbol, symbol_quotes[symbol],
+                         account_id, order_price, fee)
+        print(msg)
 
     # Should never happen but just in case...
-    totalCost = orderPriceSum + feeSum
-    if totalCost > cashTotal:
-        print "Order total cost of ${0} CAD is higher than total cash of ${1} CAD, stopping".format(totalCost, cashTotal)
+    total_cost = order_price_sum + fee_sum
+    if total_cost > cash_total:
+        msg = "Order total cost of ${} CAD is higher than total cash of " + \
+              "${} CAD, stopping"
+        msg = msg.format(total_cost, cash_total)
+        print(msg)
         return False
 
-    print "Total cost is ${0} CAD and ${1} CAD in fees, leaving you with ${2} CAD in cash".format(orderPriceSum, feeSum, cashTotal - totalCost)
+    msg = "Total cost is ${} CAD and ${} CAD in fees, leaving you with ${} " + \
+          "CAD in cash"
+    msg = msg.format(order_price_sum, fee_sum, cash_total - total_cost)
+    print(msg)
 
-    if shouldPlaceOrders:
-        if shouldConfirmOrders:
-            confirmationText = raw_input("Please type CONFIRM in all CAPS to place orders: ")
-            if confirmationText.strip() != 'CONFIRM':
-                print "Confirmation was not equal to CONFIRM, stopping."
+    if should_place_orders:
+        if should_confirm_orders:
+            msg = "Please type CONFIRM in all CAPS to place orders: "
+            confirmation_text = input(msg)
+            if confirmation_text.strip() != 'CONFIRM':
+                print("Confirmation was not equal to CONFIRM, stopping.")
                 return False
 
-        return placeBuyOrders(accountId, symbolIdDict, buyOrders, symbolQuotes)
+        return place_buy_orders(account_id, symbol_id_dict,
+                                buy_orders, symbol_quotes)
 
     return True
+
 
 parser = argparse.ArgumentParser(description='Buys ETFs according to the configured ratios')
 subparsers = parser.add_subparsers(dest='command')
@@ -181,9 +225,9 @@ placeOrders.add_argument('accountNumber', help='The number of the account')
 args = parser.parse_args()
 
 if args.command == 'listAccounts':
-    accounts = account.accounts()
+    accounts = questrade_api.get_accounts()
     for acc in accounts['accounts']:
-        print acc['type'], acc['number']
+        print(acc['type'], acc['number'])
         exit(0)
 else:
     shouldPlaceOrders = args.command == 'placeOrders'
@@ -195,7 +239,7 @@ else:
 
     success = rebalance(
         accountNumber,
-        getSymbolTargetRatiosForAccount(accountType),
+        get_symbol_target_rations_for_account(accountType),
         shouldPlaceOrders,
         shouldConfirmOrders)
 
