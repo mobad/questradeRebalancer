@@ -1,6 +1,7 @@
 #!/bin/env python3
 
 import argparse
+import json
 from sys import float_info
 from QuestradeApi import QuestradeApi
 
@@ -10,17 +11,43 @@ QUESTRADE_ECN = 0.0035
 DOLLAR_COST_AVERAGE = 1.0
 
 questrade_api = QuestradeApi(AUTH_TOKEN)
-questrade_api.setup()
+
+TARGET_RATIO_FILE = "target_ratio.json"
+ratios = None
 
 
-def get_symbol_target_rations_for_account(account_type):
-    # Please make sure each account adds to 100 or this script will not work correctly!
-    ratios = {
-        'Margin': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
-        'TFSA': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
-        'RRSP': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20}
-    }
-    return ratios[account_type]
+def _read_target_ratio_file(path):
+    with open(path, 'r') as f:
+        return json.load(f)
+
+
+def _write_target_ratio_file(ratios_dict, path):
+    with open(path, 'w') as f:
+        json.dump(ratios_dict, f, indent=4, sort_keys=True)
+        f.write('\n')
+
+
+def populate_ratios():
+    global ratios
+    try:
+        ratios = _read_target_ratio_file(TARGET_RATIO_FILE)
+    except FileNotFoundError:
+        ratios = {
+            'Margin': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
+            'TFSA': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
+            'RRSP': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20}
+        }
+        _write_target_ratio_file(ratios, TARGET_RATIO_FILE)
+
+
+def get_symbol_target_ratios_for_account(account_type):
+    # Please make sure each account adds to 100
+    # or this script will not work correctly!
+    try:
+        return ratios[account_type]
+    except TypeError:
+        populate_ratios()
+        return ratios[account_type]
 
 
 def get_available_cash(account_id):
@@ -212,6 +239,8 @@ def rebalance(account_id, symbol_target_ratios,
     return True
 
 
+populate_ratios()
+
 parser = argparse.ArgumentParser(description='Buys ETFs according to the configured ratios')
 subparsers = parser.add_subparsers(dest='command')
 listAccounts = subparsers.add_parser('listAccounts', help='Lists your Questrade accounts')
@@ -239,7 +268,7 @@ else:
 
     success = rebalance(
         accountNumber,
-        get_symbol_target_rations_for_account(accountType),
+        get_symbol_target_ratios_for_account(accountType),
         shouldPlaceOrders,
         shouldConfirmOrders)
 

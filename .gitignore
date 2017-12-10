@@ -101,5 +101,6 @@ ENV/
 .mypy_cache/
 .idea/
 
-# exclude the auth file
+# exclude json conf files
 auth.json
+target_ratio.json

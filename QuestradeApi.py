@@ -37,6 +37,7 @@ class QuestradeApi:
         self.requests = None
         self.api_server = None
         self.auth_header = None
+        self.setup()
 
     def read_auth_file(self, path):
         with open(path, "r") as f:
@@ -44,13 +45,12 @@ class QuestradeApi:
 
     def write_auth_file(self, auth_dict, path):
         with open(path, "w") as f:
-            f.write(json.dumps(auth_dict, indent=4, sort_keys=True))
+            json.dump(auth_dict, f, indent=4, sort_keys=True)
+            f.write('\n')
 
     def _parse_auth(self, auth):
-        self.auth_header = \
-            {"Authorization": "{} {}".
-                format(auth["token_type"], auth["access_token"])
-            }
+        auth_entry = "{} {}".format(auth["token_type"], auth["access_token"])
+        self.auth_header = {"Authorization": auth_entry}
         self.api_server = auth['api_server']
 
     def fetch_auth(self):
@@ -80,7 +80,7 @@ class QuestradeApi:
                 auth = self.read_auth_file(SETTINGS_FILE)
                 self._parse_auth(auth)
                 self.write_auth_file(auth, SETTINGS_FILE)
-            except:
+            except FileNotFoundError:
                 auth = self.fetch_auth()
                 self._parse_auth(auth)
                 self.write_auth_file(auth, SETTINGS_FILE)

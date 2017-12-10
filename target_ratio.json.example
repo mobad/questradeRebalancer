@@ -1,0 +1,17 @@
+{
+    "Margin": {
+        "VCN.TO": 40,
+        "XEF.TO": 20,
+        "XUU.TO": 40
+    },
+    "RRSP": {
+        "VCN.TO": 40,
+        "XEF.TO": 20,
+        "XUU.TO": 40
+    },
+    "TFSA": {
+        "VCN.TO": 40,
+        "XEF.TO": 20,
+        "XUU.TO": 40
+    }
+}
