@@ -12,13 +12,13 @@ Script to buy ETFs using available cash and rebalance according to configured ra
 - Actually place those orders
 
 ## Configuration:
-This uses my fork of QuestradeAPI_PythonWrapper https://github.com/mobad/QuestradeAPI_PythonWrapper and that will need to be installed and set up.
+
+This for uses a wrapped api found in `QuestradeApi.py`.
+
 
 You need to create a Personal Api key on Questrade by following http://www.questrade.com/api/documentation/getting-started and make sure to enable all three permissions if you want it to make trades.
 
 If you never want the script to place any orders then I recommened not enabling the trading permission.
-
-Put this api key in a file called ~/.questrade_token.json in the format of:
 
 >{"access_token":"","api_server":"https:\\/\\/api01.iq.questrade.com\\/","expires_in":1800,"refresh_token":"YOUR_TOKEN_HERE","token_type":"Bearer"}
 
@@ -26,7 +26,26 @@ To configure which ETFs and the ratios then modify getSymbolTargetRatiosForAccou
 
 ## Usage:
 
-> questradeRebalancer.py listAccounts to list accounts
+`
+usage: questradeRebalancer.py [-h] {listAccounts,showOrders,placeOrders} ...
+
+Buys ETFs according to the configured ratios
+
+positional arguments:
+  {listAccounts,showOrders,placeOrders}
+    listAccounts        Lists your Questrade accounts
+    showOrders          Shows the orders that would be made
+    placeOrders         Places orders to rebalance your account
+
+optional arguments:
+  -h, --help            show this help message and exit
+`
+
+### Old
+
+To list accounts:
+
+`./questradeRebalancer.py listAccounts`
 
 Then, to list what it would buy:
 
@@ -69,3 +88,4 @@ It only handles CAD cash and won't touch other currencies.
 
 
 [![Donate](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=YQM3NLUHH9JA2)
+^ Original author's paypal
