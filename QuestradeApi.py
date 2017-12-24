@@ -175,7 +175,7 @@ class QuestradeApi:
         return self.requests.get(candles_path, params=kwargs)
 
     # Order Calls
-    def place_order(self, account_id, symbol_id, quantity, price):
+    def place_order(self, account_id, symbol_id, quantity, price, buy=True):
         payload = {
             "accountNumber": account_id,
             "symbolId": symbol_id,
@@ -185,11 +185,17 @@ class QuestradeApi:
             "isAnonymous": False,
             "orderType": "Limit",
             "timeInForce": "Day",
-            "action": "Buy",
+            "action": 'Buy' if buy else 'Sell',
             "primaryRoute": "AUTO",
             "secondaryRoute": "AUTO"
         }
         return self._send_order(**payload)
+
+    def place_buy_order(self, account_id, symbol_id, quantity, price):
+        return self.place_order(account_id, symbol_id, quantity, price, buy=True)
+
+    def place_sell_order(self, account_id, symbol_id, quantity, price):
+        return self.place_order(account_id, symbol_id, quantity, price, buy=False)
 
     def _send_order(self, **kwargs):
         orders_path = "{}/{}/orders"
@@ -197,7 +203,7 @@ class QuestradeApi:
             api_paths["accounts"], kwargs["accountNumber"])
         return self.requests.post(orders_path, json=kwargs)
 
-    def get_order_imapact(self, account_id, **kwargs):
+    def get_order_impact(self, account_id, **kwargs):
         pass
 
     def delete_order(self, account_id, order_id):
