@@ -14,9 +14,6 @@ questrade_api = QuestradeApi(AUTH_TOKEN)
 
 DEFAULT_TARGET_RATIO_FILE = "target_ratio.json"
 
-# TODO: Rename this or rename the ones in the functions
-target_ratios = None
-
 sample_ratios = {
     'Margin': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
     'TFSA': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
@@ -35,16 +32,16 @@ def _write_target_ratio_file(ratios_dict, path):
         f.write('\n')
 
 
-def populate_account_targets(path):
-    global target_ratios
+def get_account_targets(path):
     try:
-        target_ratios = _read_target_ratio_file(path)
+        return _read_target_ratio_file(path)
     except FileNotFoundError:
         target_ratios = sample_ratios
         _write_target_ratio_file(target_ratios, DEFAULT_TARGET_RATIO_FILE)
+        return target_ratios
 
 
-def get_symbol_target_ratios_for_account(account_type):
+def get_symbol_target_ratios_for_account(target_ratios, account_type):
     # Please make sure each account adds to 100
     # or this script will not work correctly!
     return target_ratios[account_type]
@@ -66,7 +63,7 @@ def get_positions_value(account_id, symbols):
     for position in positions['positions']:
         symbol = position['symbol']
         if symbol in symbols:
-            value = position['currentMarketValue']
+            value = position['currentMarketValue'] * 1.0
             positions_value[symbol] = value
             positions_total += value
     return positions_total, positions_value
@@ -86,19 +83,19 @@ def get_symbol_quotes(symbol_ids):
 
 
 def new_smallest_symbol(positions_total, target_ratios,
-                        symbol_quotes, positions_values):
+                        symbol_quotes, positions_value):
 
     def calc_r2(ratio1, ratio2):
         diff = ratio1 - ratio2
         return diff ** 2
 
     def calc_current_r2(symbol):
-        current_ratio = positions_values[symbol] / (positions_total * 1.0)
+        current_ratio = positions_value[symbol] / (positions_total * 1.0)
         target_ratio = target_ratios[symbol] / 100.0
         return calc_r2(current_ratio, target_ratio)
 
     def calc_new_r2(symbol):
-        new_ratio = (positions_values[symbol] + symbol_quotes[symbol]) / \
+        new_ratio = (positions_value[symbol] + symbol_quotes[symbol]) / \
                     (positions_total + symbol_quotes[symbol] * 1.0)
         target_ratio = target_ratios[symbol] / 100.0
         return calc_r2(new_ratio, target_ratio)
@@ -109,24 +106,24 @@ def new_smallest_symbol(positions_total, target_ratios,
         return new_r2 - curr_r2
 
     r2_diffs = {symbol: calc_r2_diff(symbol)
-                for symbol in positions_values.keys()}
+                for symbol in positions_value.keys()}
     return min(r2_diffs, key=r2_diffs.get)
 
 
-def old_smallest_symbols(positions_total, symbol_target_ratios,
-                         symbol_quotes, position_values):
+def old_smallest_symbols(positions_total, target_ratios,
+                         symbol_quotes, positions_value):
     min_mag_diff = float_info.max
     min_symbol = None
 
-    for selected_symbol in symbol_target_ratios.keys():
+    for selected_symbol in target_ratios.keys():
         total = positions_total + symbol_quotes[selected_symbol]
 
         sum_of_mag_diff = 0
-        for symbol, position_value in position_values.items():
+        for symbol, position_value in positions_value.items():
             value = position_value
             if selected_symbol == symbol:
                 value += symbol_quotes[selected_symbol]
-            diff = (symbol_target_ratios[symbol] / 100.0) - (value / total)
+            diff = (target_ratios[symbol] / 100.0) - (value / total)
             sum_of_mag_diff += diff * diff
 
         if sum_of_mag_diff < min_mag_diff:
@@ -142,14 +139,14 @@ def some_tax_loss_harvest():
 # TODO: implement
 # Buy and sell to rebalance the portfolio
 def something_strategy_1(cash_total, positions_total, target_ratios,
-                         symbol_quotes, position_values):
+                         symbol_quotes, positions_value):
     pass
 
 
 # Buy the stock that will minimize the r^2 between current positions ratios and
 # target ratios
 def something_strategy_2(cash_total, positions_total, target_ratios,
-                         symbol_quotes, position_values):
+                         symbol_quotes, positions_value):
     to_buy = {}
     remaining = cash_total
 
@@ -157,7 +154,7 @@ def something_strategy_2(cash_total, positions_total, target_ratios,
         # Buy the stock which will produce the smallest difference in ratios
         # TODO: Test out the two different symbol strategies
         symbol = old_smallest_symbols(
-            positions_total, target_ratios, symbol_quotes, position_values)
+            positions_total, target_ratios, symbol_quotes, positions_value)
         # Stop if we can't afford the optimum stock
         if not symbol or (symbol_quotes[symbol] + QUESTRADE_ECN) > remaining:
             break
@@ -165,7 +162,7 @@ def something_strategy_2(cash_total, positions_total, target_ratios,
         cost_of_symbol = symbol_quotes[symbol]
         remaining -= cost_of_symbol + QUESTRADE_ECN
         positions_total += cost_of_symbol
-        position_values[symbol] += cost_of_symbol
+        positions_value[symbol] += cost_of_symbol
 
     # Convert into an order list
     order_list = []
@@ -211,7 +208,8 @@ def place_orders(account_id, order_list):
         price = order['price']
         action = order['action']
         buy = action == "buy"
-        po = questrade_api.place_order(account_id, symbol, quantity, price, buy)
+        po = questrade_api.place_order(account_id, symbol,
+                                       quantity, price, buy=buy)
         if po['orders'][0]['rejectReason']:
             reason = po['orders'][0]['rejectReason']
             msg = "Order for {} ({} x {}) was rejected. Reason: {}"
@@ -219,7 +217,7 @@ def place_orders(account_id, order_list):
             break
 
 
-def something_reblance(account_id, target_ratios, strategy=1, previewOnly=False, confirm=True):
+def something_reblance(account_id, target_ratios, strategy=1, preview_only=False, confirm=True):
     # Check if there are conflicting orders
     symbols = target_ratios.keys()
     if contains_open_conflicting_order(account_id, symbols, verbose=True):
