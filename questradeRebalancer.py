@@ -132,20 +132,15 @@ def old_smallest_symbols(positions_total, target_ratios,
 
     return min_symbol
 
+
 # TODO: maybe
 def some_tax_loss_harvest():
-    pass
-
-# TODO: implement
-# Buy and sell to rebalance the portfolio
-def something_strategy_1(cash_total, positions_total, target_ratios,
-                         symbol_quotes, positions_value):
     pass
 
 
 # Buy the stock that will minimize the r^2 between current positions ratios and
 # target ratios
-def something_strategy_2(cash_total, positions_total, target_ratios,
+def something_strategy_1(cash_total, positions_total, target_ratios,
                          symbol_quotes, positions_value):
     to_buy = {}
     remaining = cash_total
@@ -178,10 +173,17 @@ def something_strategy_2(cash_total, positions_total, target_ratios,
 
 
 # Buy stocks that will minimize the r^2 just from the total cash.
-def something_strategy_3(cash_total, target_ratios, symbol_quotes):
+def something_strategy_2(cash_total, target_ratios, symbol_quotes):
     zeroed_positions = {symbol: 0 for symbol in target_ratios.keys()}
-    return something_strategy_2(cash_total, 0, target_ratios,
+    return something_strategy_1(cash_total, 0, target_ratios,
                                 symbol_quotes, zeroed_positions)
+
+
+# TODO: implement
+# Buy and sell to rebalance the portfolio
+def something_strategy_3(cash_total, positions_total, target_ratios,
+                         symbol_quotes, positions_value):
+    return []
 
 
 def contains_open_conflicting_order(account_id, symbols, verbose=True):
@@ -201,6 +203,7 @@ def contains_open_conflicting_order(account_id, symbols, verbose=True):
         return False
 
 
+# TODO: prioritize sell on strategy 3, don't buy until sold
 def place_orders(account_id, order_list):
     for order in order_list:
         symbol = order['symbol']
@@ -217,88 +220,57 @@ def place_orders(account_id, order_list):
             break
 
 
-def something_reblance(account_id, target_ratios, strategy=1, preview_only=False, confirm=True):
+def preview_order(order):
+    symbol = order['symbol']
+    quantity = order['quantity']
+    price = order['price']
+    action = order['action']
+    print("{} {} ({} x {})".format(action, symbol, quantity, price))
+
+
+def something_rebalance(account_id, target_ratios, strategy=1, preview_only=False, confirm=True):
     # Check if there are conflicting orders
     symbols = target_ratios.keys()
     if contains_open_conflicting_order(account_id, symbols, verbose=True):
         return
 
     cash_total = get_available_cash(account_id) / DOLLAR_COST_AVERAGE
-    position_total, position_values = get_positions_value(account_id, symbols)
+    positions_total, positions_value = get_positions_value(account_id, symbols)
     symbol_quotes = get_symbol_quotes(list(target_ratios.values()))
 
-
     # Get orders
+    if strategy == 1:
+        buy_orders = \
+            something_strategy_1(cash_total, positions_total, target_ratios,
+                                 symbol_quotes, positions_value)
+    elif strategy == 2:
+        buy_orders = \
+            something_strategy_2(cash_total, target_ratios, symbol_quotes)
+    elif strategy == 3:
+        buy_orders = \
+            something_strategy_3(cash_total, positions_total, target_ratios,
+                                 symbol_quotes, positions_value)
+    else:
+        buy_orders = []
 
     # Preview orders
+    for order in buy_orders:
+        preview_order(order)
 
     # Place orders
+    if not preview_only:
+        if not confirm:
+            confirmed = True
+        else:
+            keyword = "CONFIRM"
+            msg = "Please type {} in all CAPS to place orders: ".format(keyword)
+            confirm_in = input(msg)
+            confirmed = confirm_in == keyword
 
-
-def rebalance(account_id, symbol_target_ratios,
-              should_place_orders, should_confirm_orders):
-    symbols = symbol_target_ratios.keys()
-
-    cash_total = get_available_cash(account_id) / DOLLAR_COST_AVERAGE
-
-    symbol_id_dict = get_internal_symbols(symbols)
-    positions_total, position_values = get_positions_value(account_id, symbols)
-
-    symbol_quotes = get_symbol_quotes(list(symbol_id_dict.values()))
-    for symbol, quote in symbol_quotes.items():
-        if not quote:
-            msg = "Something went wrong getting the quote of {}, stopping."
-            msg = msg.format(symbol)
-            print(msg)
-            print("Most likely the exchange is just closed.")
+        if not confirmed:
+            print("Couldn't confirm confirmation. Stopping")
             exit(1)
-
-    buy_orders = get_buy_orders(cash_total, positions_total,
-                                symbol_target_ratios, symbol_quotes,
-                                position_values)
-
-    if len(buy_orders) == 0:
-        print("Not enough money to make any orders, stopping")
-        exit(1)
-
-    order_price_sum = 0.0
-    fee_sum = 0.0
-    for symbol, to_buy in buy_orders.items():
-        order_price = to_buy * symbol_quotes[symbol]
-        order_price_sum += order_price
-        fee = to_buy * QUESTRADE_ECN
-        fee_sum += fee
-
-        msg = "Will place a Day Limit order for {} x {} @ {} on account " + \
-              "{} costing ${} CAD and ${} CAD in ECN fees"
-        msg = msg.format(to_buy, symbol, symbol_quotes[symbol],
-                         account_id, order_price, fee)
-        print(msg)
-
-    # Should never happen but just in case...
-    total_cost = order_price_sum + fee_sum
-    if total_cost > cash_total:
-        msg = "Order total cost of ${} CAD is higher than total cash of " + \
-              "${} CAD, stopping"
-        msg = msg.format(total_cost, cash_total)
-        print(msg)
-        exit(1)
-
-    msg = "Total cost is ${} CAD and ${} CAD in fees, leaving you with ${} " + \
-          "CAD in cash"
-    msg = msg.format(order_price_sum, fee_sum, cash_total - total_cost)
-    print(msg)
-
-    if should_place_orders:
-        if should_confirm_orders:
-            msg = "Please type CONFIRM in all CAPS to place orders: "
-            confirmation_text = input(msg)
-            if confirmation_text.strip() != 'CONFIRM':
-                print("Confirmation was not equal to CONFIRM, stopping.")
-                exit(1)
-
-        place_buy_orders(account_id, symbol_id_dict, buy_orders, symbol_quotes)
-
+        place_orders(account_id, buy_orders)
 
 
 text = {
