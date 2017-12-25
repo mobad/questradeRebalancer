@@ -12,8 +12,16 @@ DOLLAR_COST_AVERAGE = 1.0
 
 questrade_api = QuestradeApi(AUTH_TOKEN)
 
-TARGET_RATIO_FILE = "target_ratio.json"
-ratios = None
+DEFAULT_TARGET_RATIO_FILE = "target_ratio.json"
+
+# TODO: Rename this or rename the ones in the functions
+target_ratios = None
+
+sample_ratios = {
+    'Margin': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
+    'TFSA': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
+    'RRSP': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20}
+}
 
 
 def _read_target_ratio_file(path):
@@ -27,27 +35,19 @@ def _write_target_ratio_file(ratios_dict, path):
         f.write('\n')
 
 
-def populate_ratios():
-    global ratios
+def populate_account_targets(path):
+    global target_ratios
     try:
-        ratios = _read_target_ratio_file(TARGET_RATIO_FILE)
+        target_ratios = _read_target_ratio_file(path)
     except FileNotFoundError:
-        ratios = {
-            'Margin': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
-            'TFSA': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
-            'RRSP': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20}
-        }
-        _write_target_ratio_file(ratios, TARGET_RATIO_FILE)
+        target_ratios = sample_ratios
+        _write_target_ratio_file(target_ratios, DEFAULT_TARGET_RATIO_FILE)
 
 
 def get_symbol_target_ratios_for_account(account_type):
     # Please make sure each account adds to 100
     # or this script will not work correctly!
-    try:
-        return ratios[account_type]
-    except TypeError:
-        populate_ratios()
-        return ratios[account_type]
+    return target_ratios[account_type]
 
 
 def get_available_cash(account_id):
@@ -56,24 +56,20 @@ def get_available_cash(account_id):
     for currency in cash_balances:
         if currency['currency'] == 'CAD':
             return currency['cash']
-    return None
 
 
 def get_positions_value(account_id, symbols):
-    position_values = {}
-    for symbol in symbols:
-        position_values[symbol] = 0
-
+    # Initialize dict to have 0 for each symbol
+    positions_value = {symbol: 0 for symbol in symbols}
     positions_total = 0
     positions = questrade_api.get_positions(account_id)
     for position in positions['positions']:
         symbol = position['symbol']
-        if symbol in position_values:
+        if symbol in symbols:
             value = position['currentMarketValue']
-            position_values[symbol] = value
+            positions_value[symbol] = value
             positions_total += value
-
-    return positions_total, position_values
+    return positions_total, positions_value
 
 
 def get_internal_symbols(symbols):
@@ -81,23 +77,44 @@ def get_internal_symbols(symbols):
     for symbol in symbols:
         symbol_id = questrade_api.get_id_from_symbol_name(symbol)
         symbol_id_dicts[symbol] = symbol_id
-
     return symbol_id_dicts
 
 
 def get_symbol_quotes(symbol_ids):
-    symbol_quotes = {}
     quotes = questrade_api.get_market_quotes(symbol_ids)
-    for quote in quotes['quotes']:
-        symbol_quotes[quote['symbol']] = quote['askPrice']
-
-    return symbol_quotes
+    return {quote['symbol']: quote['askPrice'] for quote in quotes['quotes']}
 
 
-def get_symbol_of_smallest_target_ratio_differences(positions_total,
-                                                    symbol_target_ratios,
-                                                    symbol_quotes,
-                                                    position_values):
+def new_smallest_symbol(positions_total, target_ratios,
+                        symbol_quotes, positions_values):
+
+    def calc_r2(ratio1, ratio2):
+        diff = ratio1 - ratio2
+        return diff ** 2
+
+    def calc_current_r2(symbol):
+        current_ratio = positions_values[symbol] / (positions_total * 1.0)
+        target_ratio = target_ratios[symbol] / 100.0
+        return calc_r2(current_ratio, target_ratio)
+
+    def calc_new_r2(symbol):
+        new_ratio = (positions_values[symbol] + symbol_quotes[symbol]) / \
+                    (positions_total + symbol_quotes[symbol] * 1.0)
+        target_ratio = target_ratios[symbol] / 100.0
+        return calc_r2(new_ratio, target_ratio)
+
+    def calc_r2_diff(symbol):
+        curr_r2 = calc_current_r2(symbol)
+        new_r2 = calc_new_r2(symbol)
+        return new_r2 - curr_r2
+
+    r2_diffs = {symbol: calc_r2_diff(symbol)
+                for symbol in positions_values.keys()}
+    return min(r2_diffs, key=r2_diffs.get)
+
+
+def old_smallest_symbols(positions_total, symbol_target_ratios,
+                         symbol_quotes, position_values):
     min_mag_diff = float_info.max
     min_symbol = None
 
@@ -118,57 +135,106 @@ def get_symbol_of_smallest_target_ratio_differences(positions_total,
 
     return min_symbol
 
+# TODO: maybe
+def some_tax_loss_harvest():
+    pass
 
-def get_buy_orders(cash_total, positions_total, symbol_target_ratios,
-                   symbol_quotes, position_values):
-    buy_orders = {}
+# TODO: implement
+# Buy and sell to rebalance the portfolio
+def something_strategy_1(cash_total, positions_total, target_ratios,
+                         symbol_quotes, position_values):
+    pass
+
+
+# Buy the stock that will minimize the r^2 between current positions ratios and
+# target ratios
+def something_strategy_2(cash_total, positions_total, target_ratios,
+                         symbol_quotes, position_values):
+    to_buy = {}
     remaining = cash_total
-    new_positions_total = positions_total
 
     while remaining > QUESTRADE_ECN:
         # Buy the stock which will produce the smallest difference in ratios
-        symbol = get_symbol_of_smallest_target_ratio_differences(
-            new_positions_total, symbol_target_ratios,
-            symbol_quotes, position_values)
-        # If we can't afford the optimum stock then stop
+        # TODO: Test out the two different symbol strategies
+        symbol = old_smallest_symbols(
+            positions_total, target_ratios, symbol_quotes, position_values)
+        # Stop if we can't afford the optimum stock
         if not symbol or (symbol_quotes[symbol] + QUESTRADE_ECN) > remaining:
             break
+        to_buy[symbol] = to_buy.get(symbol, 0) + 1
+        cost_of_symbol = symbol_quotes[symbol]
+        remaining -= cost_of_symbol + QUESTRADE_ECN
+        positions_total += cost_of_symbol
+        position_values[symbol] += cost_of_symbol
 
-        buy_orders[symbol] = buy_orders.get(symbol, 0) + 1
-        remaining -= symbol_quotes[symbol] + QUESTRADE_ECN
-        new_positions_total += symbol_quotes[symbol]
-        position_values[symbol] += symbol_quotes[symbol]
+    # Convert into an order list
+    order_list = []
+    for symbol, quantity in to_buy.items():
+        order = {
+            'symbol': symbol,
+            'quantity': to_buy[symbol],
+            'price': symbol_quotes[symbol],
+            'action': 'buy'
+        }
+        order_list.append(order)
+    return order_list
 
-    return buy_orders
+
+# Buy stocks that will minimize the r^2 just from the total cash.
+def something_strategy_3(cash_total, target_ratios, symbol_quotes):
+    zeroed_positions = {symbol: 0 for symbol in target_ratios.keys()}
+    return something_strategy_2(cash_total, 0, target_ratios,
+                                symbol_quotes, zeroed_positions)
 
 
-def place_buy_orders(account_id, symbol_id_dict, buy_orders, symbol_quotes):
-    open_orders = questrade_api.get_orders(account_id, stateFilter="Open")
-    for open_order in open_orders['orders']:
-        if open_order['symbol'] in buy_orders:
-            msg = "There is an open order for {} on account {}. stopping."
-            msg.format(open_order['symbol'], account_id)
-            print(msg)
-            return False
+def contains_open_conflicting_order(account_id, symbols, verbose=True):
+    open_orders = questrade_api.get_orders(account_id, stateFilter='Open')
+    conflicting_symbols = []
+    for order in open_orders['orders']:
+        symbol = order['symbol']
+        if symbol in symbols:
+            conflicting_symbols.append(symbol)
+    if len(conflicting_symbols) == 0:
+        return True
+    else:
+        if verbose:
+            for symbol in conflicting_symbols:
+                print("There is an open order for {}".format(symbol))
+            print("On account".format(account_id))
+        return False
 
-    for symbol, to_buy in buy_orders.items():
-        symbol_id = symbol_id_dict[symbol]
-        symbol_quote = symbol_quotes[symbol]
-        order = questrade_api.place_order(
-            account_id, symbol_id, to_buy, symbol_quote)['orders'][0]
-        if order['rejectionReason'] != '':
-            reject_reason = order['rejectionReason']
-            msg = "Order for {} x {} @ {} on account {} was rejected for " + \
-                  "reason {}, stopping."
-            msg = msg.format(
-                to_buy, symbol, symbol_quote, account_id, reject_reason)
-            print(msg)
-            return False
-        msg = "Order for {} x {} @ {} on account {} was placed successfully."
-        msg = msg.format(to_buy, symbol, symbol_quote, account_id)
-        print(msg)
 
-    return True
+def place_orders(account_id, order_list):
+    for order in order_list:
+        symbol = order['symbol']
+        quantity = order['quantity']
+        price = order['price']
+        action = order['action']
+        buy = action == "buy"
+        po = questrade_api.place_order(account_id, symbol, quantity, price, buy)
+        if po['orders'][0]['rejectReason']:
+            reason = po['orders'][0]['rejectReason']
+            msg = "Order for {} ({} x {}) was rejected. Reason: {}"
+            print(msg.format(symbol, quantity, price, reason))
+            break
+
+
+def something_reblance(account_id, target_ratios, strategy=1, previewOnly=False, confirm=True):
+    # Check if there are conflicting orders
+    symbols = target_ratios.keys()
+    if contains_open_conflicting_order(account_id, symbols, verbose=True):
+        return
+
+    cash_total = get_available_cash(account_id) / DOLLAR_COST_AVERAGE
+    position_total, position_values = get_positions_value(account_id, symbols)
+    symbol_quotes = get_symbol_quotes(list(target_ratios.values()))
+
+
+    # Get orders
+
+    # Preview orders
+
+    # Place orders
 
 
 def rebalance(account_id, symbol_target_ratios,
@@ -187,7 +253,7 @@ def rebalance(account_id, symbol_target_ratios,
             msg = msg.format(symbol)
             print(msg)
             print("Most likely the exchange is just closed.")
-            return False 
+            exit(1)
 
     buy_orders = get_buy_orders(cash_total, positions_total,
                                 symbol_target_ratios, symbol_quotes,
@@ -195,7 +261,7 @@ def rebalance(account_id, symbol_target_ratios,
 
     if len(buy_orders) == 0:
         print("Not enough money to make any orders, stopping")
-        return True
+        exit(1)
 
     order_price_sum = 0.0
     fee_sum = 0.0
@@ -218,7 +284,7 @@ def rebalance(account_id, symbol_target_ratios,
               "${} CAD, stopping"
         msg = msg.format(total_cost, cash_total)
         print(msg)
-        return False
+        exit(1)
 
     msg = "Total cost is ${} CAD and ${} CAD in fees, leaving you with ${} " + \
           "CAD in cash"
@@ -231,27 +297,45 @@ def rebalance(account_id, symbol_target_ratios,
             confirmation_text = input(msg)
             if confirmation_text.strip() != 'CONFIRM':
                 print("Confirmation was not equal to CONFIRM, stopping.")
-                return False
+                exit(1)
 
-        return place_buy_orders(account_id, symbol_id_dict,
-                                buy_orders, symbol_quotes)
-
-    return True
+        place_buy_orders(account_id, symbol_id_dict, buy_orders, symbol_quotes)
 
 
-populate_ratios()
 
-parser = argparse.ArgumentParser(description='Buys ETFs according to the configured ratios')
+text = {
+    'description': 'Buy and sell ETFs/stocks according to the configured ratios.',
+    'help': {
+        'listAccounts': 'List your Questrade accounts.',
+        'showOrders': 'Shows the orders that will be made.',
+        'accountType': 'Get the type of the account',
+        'accountNumber': 'Get the account number',
+        # pending
+        'placeOrders': 'Place orders to rebalance the portfolio',
+        '--noconfirm': 'Skip the place order confirmation',
+        '--noignore': 'Ignore the ignored ETFs/stocks'
+    }
+}
+
+
+parser = argparse.ArgumentParser(description=text['description'])
 subparsers = parser.add_subparsers(dest='command')
-listAccounts = subparsers.add_parser('listAccounts', help='Lists your Questrade accounts')
-showOrders = subparsers.add_parser('showOrders', help='Shows the orders that would be made')
-showOrders.add_argument('accountType', help='The type of the account')
-showOrders.add_argument('accountNumber', help='The number of the account')
-placeOrders = subparsers.add_parser('placeOrders', help='Places orders to rebalance your account')
-placeOrders.add_argument('--noConfirm', action='store_true', help='This will skip the place order confirmation and immediately place the orders')
-placeOrders.add_argument('accountType', help='The type of the account')
-placeOrders.add_argument('accountNumber', help='The number of the account')
+listAccounts = subparsers.add_parser('listAccounts', help=text['help']['listAccounts'])
+showOrders = subparsers.add_parser('showOrders', help=text['help']['showOrders'])
+showOrders.add_argument('accountType', help=text['help']['accountType'])
+showOrders.add_argument('accountNumber', help=text['help']['accountNumber'])
+placeOrders = subparsers.add_parser('placeOrders', help=text['help']['placeOrders'])
+placeOrders.add_argument('--noconfirm', action='store_true', help=text['help']['--noconfirm'])
+placeOrders.add_argument('accountType', help=text['help']['accountType'])
+placeOrders.add_argument('accountNumber', help=text['help']['accountNumber'])
 args = parser.parse_args()
+
+def main():
+    if args.command == 'listAccounts':
+        accounts = questrade_api.get_accounts()
+        for acc in accounts:
+            print(acc['type'], acc['number'])
+
 
 if args.command == 'listAccounts':
     accounts = questrade_api.get_accounts()
@@ -266,10 +350,9 @@ else:
     accountType = args.accountType
     accountNumber = args.accountNumber
 
-    success = rebalance(
+    rebalance(
         accountNumber,
         get_symbol_target_ratios_for_account(accountType),
         shouldPlaceOrders,
         shouldConfirmOrders)
 
-    exit(not success)
