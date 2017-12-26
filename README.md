@@ -1,91 +1,80 @@
-# Questrade Rebalancer
-Script to buy ETFs using available cash and rebalance according to configured ratios.
+## Questrade Rebalancer
+Script to buy and sell stocks/ETFs according to a predefined ratio.
 
-# This is a WIP, use at your own risk!
-# This will spend all the money in an account to buy ETFs!!!
-
-## Features:
+### Features
 - List your Questrade accounts
 - Per account rebalancing
 - Show the best orders to make to keep your account balanced using your remaining cash
-- Detech whether orders have already been created for the ETFs you've configured and not place any orders
+- Detect whether orders have already been created for the ETFs you've configured and not place any orders
 - Actually place those orders
+- Three strategies for rebalancing
 
-## Configuration:
+### Authenticating
 
-This for uses a wrapped api found in `QuestradeApi.py`.
+Write this or something
 
+### Usage:
 
-You need to create a Personal Api key on Questrade by following http://www.questrade.com/api/documentation/getting-started and make sure to enable all three permissions if you want it to make trades.
+```
+$ ./QuestradeRebalancer.py -h
+usage: QuestradeRebalancer.py [-h] {show,rebalance} ...
 
-If you never want the script to place any orders then I recommened not enabling the trading permission.
-
->{"access_token":"","api_server":"https:\\/\\/api01.iq.questrade.com\\/","expires_in":1800,"refresh_token":"YOUR_TOKEN_HERE","token_type":"Bearer"}
-
-To configure which ETFs and the ratios then modify getSymbolTargetRatiosForAccount and make sure they add to 100.
-
-## Usage:
-
-`
-usage: questradeRebalancer.py [-h] {listAccounts,showOrders,placeOrders} ...
-
-Buys ETFs according to the configured ratios
+Rebalance your Questrade account according to a predefined ratio.
 
 positional arguments:
-  {listAccounts,showOrders,placeOrders}
-    listAccounts        Lists your Questrade accounts
-    showOrders          Shows the orders that would be made
-    placeOrders         Places orders to rebalance your account
+  {show,rebalance}
+    show            Show various information about your account(s).
+    rebalance       Rebalance your portfolio with various strategies.
+
+optional arguments:
+  -h, --help        show this help message and exit
+
+```
+
+```
+$ ./QuestradeRebalancer.py show -h
+usage: QuestradeRebalancer.py show [-h] {accounts,orders}
+
+positional arguments:
+  {accounts,orders}  accounts will display account details, orders will
+                     display all open orders for all accounts.
+
+optional arguments:
+  -h, --help         show this help message and exit
+```
+
+```
+$ ./QuestradeRebalancer.py rebalance -h
+usage: QuestradeRebalancer.py rebalance [-h] [--preview-only] [--no-confirm]
+                                        [--strategy {1,2,3}]
+                                        [--import-ratios IMPORT_RATIOS]
+                                        account
+
+positional arguments:
+  account               The account to rebalance.
 
 optional arguments:
   -h, --help            show this help message and exit
-`
+  --preview-only        Test run. Doesn't place orders.
+  --no-confirm          No confirmation when placing orders.
+  --strategy {1,2,3}    Set the strategy type when calculating which
+                        ETFs/stocks to buy and sell.
+  --import-ratios IMPORT_RATIOS
+                        Path to the ratios file. Defaults to
+                        target_ratios.json in the current working directory.
 
-### Old
+```
 
-To list accounts:
+### Strategies
 
-`./questradeRebalancer.py listAccounts`
+1. Buy the stock that will decrease the sum of r^2 between the account portfolio
+ratios and the target ratios.
+2. Buy the stock that will decrease the sum of r^2 just from the available cash.
+3. (TODO) Buy and sell to achieve account balance.
 
-Then, to list what it would buy:
+### Other
 
-> questradeRebalancer.py showOrders accountType accountNumber
+You can find the original repo [Here](https://github.com/mobad/questradeRebalancer)
 
-> eg. questradeRebalancer.py showOrders Margin 12345678
-
-And to actually buy:
-
-> questradeRebalancer.py placeOrders accountType accountNumber
-
-Then type CONFIRM at the prompt to place the orders.
-
-You can use the --noConfirm option to skip the confirmation.
-
-## Limitations:
-I haven't had a chance to test this with RRSP or TFSA accounts so it may not work.
-
-There is some error handling but not much:
-- If it can't get a quote of an ETF, it'll stop. (Likely exchange is just closed.)
-- If for some reason the total order cost exceeds what is in your cash account it will stop.
-- If it detects an open order for any ETF it's configured to buy, it'll stop. Please take care that other open order won't interfere and go in to your margin.
-- If it any orders fail, it'll stop.
-
-It uses a pretty simple algorithm for rebalancing:
-- Go through each of the ETFs it's been configured to buy and calculate the sum of the differences of target ratio to the ratio if that ETF was bought. (sum((target-actual)^2))
-- Choose the ETF with the lowest sum of differences.
-- If you can't afford to buy that ETF then stop, else repeat.
-- Buy all ETFs that have been chosen.
-
-It's not an efficient algorithm but it handles many edge cases nicely and is simple and easy to understand.
-
-It will place a Day Limit order for the current ask price.
-
-It can also do a kind of dollar cost averaging by modifying DOLLAR_COST_AVERAGE.
-
-It will just use currentCash / DOLLAR_COST_AVERAGE every time you run the script.
-
-It only handles CAD cash and won't touch other currencies.
-
-
-[![Donate](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=YQM3NLUHH9JA2)
-^ Original author's paypal
+###### Disclaimer
+No blame thanks.
