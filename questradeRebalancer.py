@@ -10,10 +10,13 @@ AUTH_TOKEN = ""
 QUESTRADE_ECN = 0.0035
 DOLLAR_COST_AVERAGE = 1.0
 
-questrade_api = QuestradeApi(AUTH_TOKEN)
+# questrade_api = QuestradeApi(AUTH_TOKEN)
+questrade_api = None
 
-DEFAULT_TARGET_RATIO_FILE = "target_ratio.json"
+DEFAULT_TARGET_RATIOS_FILE = "target_ratios.json"
 
+# Please make sure each account adds to 100
+# or this script will not work correctly!
 sample_ratios = {
     'Margin': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
     'TFSA': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
@@ -37,14 +40,8 @@ def get_account_targets(path):
         return _read_target_ratio_file(path)
     except FileNotFoundError:
         target_ratios = sample_ratios
-        _write_target_ratio_file(target_ratios, DEFAULT_TARGET_RATIO_FILE)
+        _write_target_ratio_file(target_ratios, DEFAULT_TARGET_RATIOS_FILE)
         return target_ratios
-
-
-def get_symbol_target_ratios_for_account(target_ratios, account_type):
-    # Please make sure each account adds to 100
-    # or this script will not work correctly!
-    return target_ratios[account_type]
 
 
 def get_available_cash(account_id):
@@ -186,6 +183,19 @@ def something_strategy_3(cash_total, positions_total, target_ratios,
     return []
 
 
+def display_open_orders(account_type, account_id):
+    print("Open orders:")
+    print(account_type, account_id)
+    open_orders = \
+        questrade_api.get_orders(account_id, stateFilter='Open')
+    for order in open_orders['orders']:
+        action = order['side']
+        symbol = order['symbol']
+        quantity = order['totalQuantity']
+        price = order['limitPrice']
+        print("{} {} ({} x {})".format(action, symbol, quantity, price))
+
+
 def contains_open_conflicting_order(account_id, symbols, verbose=True):
     open_orders = questrade_api.get_orders(account_id, stateFilter='Open')
     conflicting_symbols = []
@@ -273,56 +283,69 @@ def something_rebalance(account_id, target_ratios, strategy=1, preview_only=Fals
         place_orders(account_id, buy_orders)
 
 
-text = {
-    'description': 'Buy and sell ETFs/stocks according to the configured ratios.',
-    'help': {
-        'listAccounts': 'List your Questrade accounts.',
-        'showOrders': 'Shows the orders that will be made.',
-        'accountType': 'Get the type of the account',
-        'accountNumber': 'Get the account number',
-        # pending
-        'placeOrders': 'Place orders to rebalance the portfolio',
-        '--noconfirm': 'Skip the place order confirmation',
-        '--noignore': 'Ignore the ignored ETFs/stocks'
-    }
+description = \
+    'Rebalance your Questrade account according to a predefined ratio.'
+
+show_text = {
+    'main': 'Show various information about your account(s).',
+    'show_type': 'accounts will display account details, orders will display' +
+                 ' all open orders for all accounts.'
+}
+
+rebalance_text = {
+    'main': "Rebalance your portfolio with various strategies.",
+    'account': "The account to rebalance.",
+    '--preview-only': "Test run. Doesn\'t place orders.",
+    '--no-confirm': "No confirmation when placing orders.",
+    '--strategy': "Set the strategy type when calculating which ETFs/stocks " +
+                  "to buy and sell.",
+    '--import-ratios': "Path to the ratios file. Defaults to " +
+                      "target_ratios.json in the current working directory."
 }
 
 
-parser = argparse.ArgumentParser(description=text['description'])
+parser = argparse.ArgumentParser(description=description)
 subparsers = parser.add_subparsers(dest='command')
-listAccounts = subparsers.add_parser('listAccounts', help=text['help']['listAccounts'])
-showOrders = subparsers.add_parser('showOrders', help=text['help']['showOrders'])
-showOrders.add_argument('accountType', help=text['help']['accountType'])
-showOrders.add_argument('accountNumber', help=text['help']['accountNumber'])
-placeOrders = subparsers.add_parser('placeOrders', help=text['help']['placeOrders'])
-placeOrders.add_argument('--noconfirm', action='store_true', help=text['help']['--noconfirm'])
-placeOrders.add_argument('accountType', help=text['help']['accountType'])
-placeOrders.add_argument('accountNumber', help=text['help']['accountNumber'])
+
+show = subparsers.add_parser('show', help=show_text['main'])
+show.add_argument('show_type', choices=['accounts', 'orders'],
+                  help=show_text['show_type'])
+
+rebalance = subparsers.add_parser('rebalance', help=rebalance_text['main'])
+rebalance.add_argument('account', help=rebalance_text['account'])
+rebalance.add_argument('--preview-only', action='store_true',
+                       help=rebalance_text['--preview-only'])
+rebalance.add_argument('--no-confirm', action='store_true',
+                       help=rebalance_text['--no-confirm'])
+rebalance.add_argument('--strategy', type=int, default=1,
+                       choices=range(1, 4),
+                       help=rebalance_text['--strategy'])
+rebalance.add_argument('--import-ratios', default=DEFAULT_TARGET_RATIOS_FILE,
+                       help=rebalance_text['--import-ratios'])
+
 args = parser.parse_args()
 
+
 def main():
-    if args.command == 'listAccounts':
-        accounts = questrade_api.get_accounts()
-        for acc in accounts:
-            print(acc['type'], acc['number'])
+    get_accounts = questrade_api.get_accounts()
+    accounts = {account['type']: account['number'] for account in get_accounts}
 
+    # TODO: implement
+    if args.command == "auth":
+        pass
+    elif args.command == "show":
+        if args.show_type == "accounts":
+            for account_type, account_id in accounts.items():
+                print(account_type, account_id)
+        elif args.show_type == "orders":
+            for account in accounts.items():
+                display_open_orders(*account)
+    elif args.command == "rebalance":
+        target_ratios = get_account_targets(args.import_ratios)
+        account_id = accounts[args.account]
+        specific_account_ratios = target_ratios[args.account]
+        something_rebalance(account_id, specific_account_ratios, args.strategy,
+                            args.preview_only, not args.no_confirm)
 
-if args.command == 'listAccounts':
-    accounts = questrade_api.get_accounts()
-    for acc in accounts['accounts']:
-        print(acc['type'], acc['number'])
-        exit(0)
-else:
-    shouldPlaceOrders = args.command == 'placeOrders'
-    shouldConfirmOrders = True
-    if shouldPlaceOrders:
-        shouldConfirmOrders = not args.noConfirm
-    accountType = args.accountType
-    accountNumber = args.accountNumber
-
-    rebalance(
-        accountNumber,
-        get_symbol_target_ratios_for_account(accountType),
-        shouldPlaceOrders,
-        shouldConfirmOrders)
-
+if __name__ == "__main__":
+    main()
