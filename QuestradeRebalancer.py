@@ -84,7 +84,10 @@ def get_best_symbol(positions_total, target_ratios,
         return diff ** 2
 
     def calc_current_r2(symbol):
-        current_ratio = positions_value[symbol] / (positions_total * 1.0)
+        if positions_total == 0:
+            current_ratio = 0.0
+        else:
+            current_ratio = positions_value[symbol] / (positions_total * 1.0)
         target_ratio = target_ratios[symbol] / 100.0
         return calc_r2(current_ratio, target_ratio)
 
