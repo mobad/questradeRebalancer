@@ -2,16 +2,13 @@
 
 import argparse
 import json
-from sys import float_info
 from QuestradeApi import QuestradeApi
 
-AUTH_TOKEN = ""
 
 QUESTRADE_ECN = 0.0035
 DOLLAR_COST_AVERAGE = 1.0
 
-# questrade_api = QuestradeApi(AUTH_TOKEN)
-questrade_api = None
+questrade_api = QuestradeApi()
 
 DEFAULT_TARGET_RATIOS_FILE = "target_ratios.json"
 
@@ -79,8 +76,8 @@ def get_symbol_quotes(symbol_ids):
     return {quote['symbol']: quote['askPrice'] for quote in quotes['quotes']}
 
 
-def new_smallest_symbol(positions_total, target_ratios,
-                        symbol_quotes, positions_value):
+def get_best_symbol(positions_total, target_ratios,
+                    symbol_quotes, positions_value):
 
     def calc_r2(ratio1, ratio2):
         diff = ratio1 - ratio2
@@ -107,29 +104,6 @@ def new_smallest_symbol(positions_total, target_ratios,
     return min(r2_diffs, key=r2_diffs.get)
 
 
-def old_smallest_symbols(positions_total, target_ratios,
-                         symbol_quotes, positions_value):
-    min_mag_diff = float_info.max
-    min_symbol = None
-
-    for selected_symbol in target_ratios.keys():
-        total = positions_total + symbol_quotes[selected_symbol]
-
-        sum_of_mag_diff = 0
-        for symbol, position_value in positions_value.items():
-            value = position_value
-            if selected_symbol == symbol:
-                value += symbol_quotes[selected_symbol]
-            diff = (target_ratios[symbol] / 100.0) - (value / total)
-            sum_of_mag_diff += diff * diff
-
-        if sum_of_mag_diff < min_mag_diff:
-            min_mag_diff = sum_of_mag_diff
-            min_symbol = selected_symbol
-
-    return min_symbol
-
-
 # TODO: maybe
 def some_tax_loss_harvest():
     pass
@@ -144,8 +118,7 @@ def something_strategy_1(cash_total, positions_total, target_ratios,
 
     while remaining > QUESTRADE_ECN:
         # Buy the stock which will produce the smallest difference in ratios
-        # TODO: Test out the two different symbol strategies
-        symbol = old_smallest_symbols(
+        symbol = get_best_symbol(
             positions_total, target_ratios, symbol_quotes, positions_value)
         # Stop if we can't afford the optimum stock
         if not symbol or (symbol_quotes[symbol] + QUESTRADE_ECN) > remaining:
@@ -204,13 +177,13 @@ def contains_open_conflicting_order(account_id, symbols, verbose=True):
         if symbol in symbols:
             conflicting_symbols.append(symbol)
     if len(conflicting_symbols) == 0:
-        return True
+        return False
     else:
         if verbose:
             for symbol in conflicting_symbols:
                 print("There is an open order for {}".format(symbol))
             print("On account".format(account_id))
-        return False
+        return True
 
 
 # TODO: prioritize sell on strategy 3, don't buy until sold
@@ -244,9 +217,10 @@ def something_rebalance(account_id, target_ratios, strategy=1, preview_only=Fals
     if contains_open_conflicting_order(account_id, symbols, verbose=True):
         return
 
+    internal_symbols = get_internal_symbols(list(target_ratios.keys()))
     cash_total = get_available_cash(account_id) / DOLLAR_COST_AVERAGE
     positions_total, positions_value = get_positions_value(account_id, symbols)
-    symbol_quotes = get_symbol_quotes(list(target_ratios.values()))
+    symbol_quotes = get_symbol_quotes(list(internal_symbols.values()))
 
     # Get orders
     if strategy == 1:
@@ -286,6 +260,10 @@ def something_rebalance(account_id, target_ratios, strategy=1, preview_only=Fals
 description = \
     'Rebalance your Questrade account according to a predefined ratio.'
 
+auth_text = {
+    'main': 'Create auth file for Questrade.'
+}
+
 show_text = {
     'main': 'Show various information about your account(s).',
     'show_type': 'accounts will display account details, orders will display' +
@@ -307,6 +285,8 @@ rebalance_text = {
 parser = argparse.ArgumentParser(description=description)
 subparsers = parser.add_subparsers(dest='command')
 
+auth = subparsers.add_parser('auth', help=auth_text['main'])
+
 show = subparsers.add_parser('show', help=show_text['main'])
 show.add_argument('show_type', choices=['accounts', 'orders'],
                   help=show_text['show_type'])
@@ -327,25 +307,33 @@ args = parser.parse_args()
 
 
 def main():
-    get_accounts = questrade_api.get_accounts()
-    accounts = {account['type']: account['number'] for account in get_accounts}
+    try:
+        get_accounts = questrade_api.get_accounts()['accounts']
+        accounts = {account['type']: account['number']
+                    for account in get_accounts}
+        authenticated = True
+    except AttributeError:
+        authenticated = False
 
-    # TODO: implement
-    if args.command == "auth":
-        pass
-    elif args.command == "show":
-        if args.show_type == "accounts":
-            for account_type, account_id in accounts.items():
-                print(account_type, account_id)
-        elif args.show_type == "orders":
-            for account in accounts.items():
-                display_open_orders(*account)
-    elif args.command == "rebalance":
-        target_ratios = get_account_targets(args.import_ratios)
-        account_id = accounts[args.account]
-        specific_account_ratios = target_ratios[args.account]
-        something_rebalance(account_id, specific_account_ratios, args.strategy,
-                            args.preview_only, not args.no_confirm)
+    if not authenticated:
+        if args.command == "auth":
+            questrade_api.auth()
+    else:
+        if args.command == "show":
+            if args.show_type == "accounts":
+                for account_type, account_id in accounts.items():
+                    print(account_type, account_id)
+            elif args.show_type == "orders":
+                for account in accounts.items():
+                    display_open_orders(*account)
+        elif args.command == "rebalance":
+            target_ratios = get_account_targets(args.import_ratios)
+            account_id = accounts[args.account]
+            specific_account_ratios = target_ratios[args.account]
+            something_rebalance(account_id, specific_account_ratios,
+                                args.strategy, args.preview_only,
+                                not args.no_confirm)
+
 
 if __name__ == "__main__":
     main()

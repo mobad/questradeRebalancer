@@ -32,8 +32,7 @@ class WrappedRequests:
 
 
 class QuestradeApi:
-    def __init__(self, auth_token):
-        self.auth_token = auth_token
+    def __init__(self):
         self.requests = None
         self.api_server = None
         self.auth_header = None
@@ -53,9 +52,9 @@ class QuestradeApi:
         self.auth_header = {"Authorization": auth_entry}
         self.api_server = auth['api_server']
 
-    def fetch_auth(self):
+    def fetch_auth(self, auth_token):
         params = {"grant_type": "refresh_token",
-                  "refresh_token": self.auth_token}
+                  "refresh_token": auth_token}
         r = requests.get(OAUTH_URL, params=params)
         return r.json()
 
@@ -70,21 +69,22 @@ class QuestradeApi:
                 out_string += ","
         return out_string
 
-    def setup(self, force_auth=False):
-        if force_auth:
-            auth = self.fetch_auth()
+    # Try to read auth file
+    def setup(self):
+        try:
+            auth = self.read_auth_file(SETTINGS_FILE)
             self._parse_auth(auth)
             self.write_auth_file(auth, SETTINGS_FILE)
-        else:
-            try:
-                auth = self.read_auth_file(SETTINGS_FILE)
-                self._parse_auth(auth)
-                self.write_auth_file(auth, SETTINGS_FILE)
-            except FileNotFoundError:
-                auth = self.fetch_auth()
-                self._parse_auth(auth)
-                self.write_auth_file(auth, SETTINGS_FILE)
-        self.requests = WrappedRequests(self.api_server, self.auth_header)
+            self.requests = WrappedRequests(self.api_server, self.auth_header)
+        except FileNotFoundError:
+            print("Couldn't find auth file. Please try running .auth().")
+
+    def auth(self):
+        auth_token = input("Enter your auth token: ")
+        auth = self.fetch_auth(auth_token.split())
+        self._parse_auth(auth)
+        self.write_auth_file(auth, SETTINGS_FILE)
+        self.setup()
 
     ## Account Calls
 
