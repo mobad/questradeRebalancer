@@ -16,8 +16,8 @@ Write this or something
 ### Usage:
 
 ```
-$ ./QuestradeRebalancer.py -h
-usage: QuestradeRebalancer.py [-h] {show,rebalance} ...
+$ ./questraderebalancer -h
+usage: questraderebalancer [-h] {show,rebalance} ...
 
 Rebalance your Questrade account according to a predefined ratio.
 
@@ -32,8 +32,8 @@ optional arguments:
 ```
 
 ```
-$ ./QuestradeRebalancer.py show -h
-usage: QuestradeRebalancer.py show [-h] {accounts,orders}
+$ ./questraderebalancer show -h
+usage: questraderebalancer show [-h] {accounts,orders}
 
 positional arguments:
   {accounts,orders}  accounts will display account details, orders will
@@ -44,8 +44,8 @@ optional arguments:
 ```
 
 ```
-$ ./QuestradeRebalancer.py rebalance -h
-usage: QuestradeRebalancer.py rebalance [-h] [--preview-only] [--no-confirm]
+$ ./questraderebalancer rebalance -h
+usage: questraderebalancer rebalance [-h] [--preview-only] [--no-confirm]
                                         [--strategy {1,2,3}]
                                         [--import-ratios IMPORT_RATIOS]
                                         account

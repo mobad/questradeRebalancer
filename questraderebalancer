@@ -2,7 +2,7 @@
 
 import argparse
 import json
-from QuestradeApi import QuestradeApi
+from api.QuestradeApi import QuestradeApi
 
 
 QUESTRADE_ECN = 0.0035
@@ -317,11 +317,10 @@ def main():
         authenticated = True
     except AttributeError:
         authenticated = False
+    except KeyError:
+        authenticated = False
 
-    if not authenticated:
-        if args.command == "auth":
-            questrade_api.auth()
-    else:
+    if authenticated:
         if args.command == "show":
             if args.show_type == "accounts":
                 for account_type, account_id in accounts.items():
@@ -336,6 +335,11 @@ def main():
             something_rebalance(account_id, specific_account_ratios,
                                 args.strategy, args.preview_only,
                                 not args.no_confirm)
+    else:
+        if args.command == "auth":
+            questrade_api.auth()
+        else:
+            print("Not authenticated, please run {} auth".format(__file__))
 
 
 if __name__ == "__main__":
