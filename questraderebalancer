@@ -214,7 +214,7 @@ def preview_order(order):
     print("{} {} ({} x {})".format(action, symbol, quantity, price))
 
 
-def something_rebalance(account_id, target_ratios, strategy=1, preview_only=False, confirm=True):
+def something_rebalance(account_id, target_ratios, strategy=1, preview_only=False):
     # Check if there are conflicting orders
     symbols = target_ratios.keys()
     if contains_open_conflicting_order(account_id, symbols, verbose=True):
@@ -246,13 +246,10 @@ def something_rebalance(account_id, target_ratios, strategy=1, preview_only=Fals
 
     # Place orders
     if not preview_only:
-        if not confirm:
-            confirmed = True
-        else:
-            keyword = "CONFIRM"
-            msg = "Please type {} in all CAPS to place orders: ".format(keyword)
-            confirm_in = input(msg)
-            confirmed = confirm_in == keyword
+        keyword = "CONFIRM"
+        msg = "Please type {} in all CAPS to place orders: ".format(keyword)
+        confirm_in = input(msg)
+        confirmed = confirm_in == keyword
 
         if not confirmed:
             print("Couldn't confirm confirmation. Stopping")
@@ -277,7 +274,6 @@ rebalance_text = {
     'main': "Rebalance your portfolio with various strategies.",
     'account': "The account to rebalance.",
     '--preview-only': "Test run. Doesn\'t place orders.",
-    '--no-confirm': "No confirmation when placing orders.",
     '--strategy': "Set the strategy type when calculating which ETFs/stocks " +
                   "to buy and sell.",
     '--import-ratios': "Path to the ratios file. Defaults to " +
@@ -298,8 +294,6 @@ rebalance = subparsers.add_parser('rebalance', help=rebalance_text['main'])
 rebalance.add_argument('account', help=rebalance_text['account'])
 rebalance.add_argument('--preview-only', action='store_true',
                        help=rebalance_text['--preview-only'])
-rebalance.add_argument('--no-confirm', action='store_true',
-                       help=rebalance_text['--no-confirm'])
 rebalance.add_argument('--strategy', type=int, default=1,
                        choices=range(1, 4),
                        help=rebalance_text['--strategy'])
@@ -333,8 +327,7 @@ def main():
             account_id = accounts[args.account]
             specific_account_ratios = target_ratios[args.account]
             something_rebalance(account_id, specific_account_ratios,
-                                args.strategy, args.preview_only,
-                                not args.no_confirm)
+                                args.strategy, args.preview_only)
     else:
         if args.command == "auth":
             questrade_api.auth()

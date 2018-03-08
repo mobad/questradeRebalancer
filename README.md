@@ -1,6 +1,10 @@
 ## Questrade Rebalancer
 Script to buy and sell stocks/ETFs according to a predefined ratio.
 
+# This script is not trading on your behalf.
+# All trades must be manually confirmed by yourself.
+# By using this script you assume full responsibility any trades made. 
+
 ### Features
 - List your Questrade accounts
 - Per account rebalancing
@@ -11,7 +15,7 @@ Script to buy and sell stocks/ETFs according to a predefined ratio.
 
 ### Authenticating
 
-Write this or something
+You must create a personal app on Questrade and generate an API key.
 
 ### Usage:
 
@@ -45,7 +49,7 @@ optional arguments:
 
 ```
 $ ./questraderebalancer rebalance -h
-usage: questraderebalancer rebalance [-h] [--preview-only] [--no-confirm]
+usage: questraderebalancer rebalance [-h] [--preview-only]
                                         [--strategy {1,2,3}]
                                         [--import-ratios IMPORT_RATIOS]
                                         account
@@ -56,7 +60,6 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   --preview-only        Test run. Doesn't place orders.
-  --no-confirm          No confirmation when placing orders.
   --strategy {1,2,3}    Set the strategy type when calculating which
                         ETFs/stocks to buy and sell.
   --import-ratios IMPORT_RATIOS
