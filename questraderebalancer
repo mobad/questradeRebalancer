@@ -226,20 +226,23 @@ def contains_open_conflicting_order(account_id, symbols, verbose=True):
 
 
 # TODO: prioritize sell on strategy 3, don't buy until sold
-def place_orders(account_id, order_list):
+def place_orders(account_id, internal_symbols, order_list):
     for order in order_list:
-        symbol = order['symbol']
+        symbol_id = internal_symbols[order['symbol']]
         quantity = order['quantity']
         price = order['price']
         action = order['action']
         buy = action == "buy"
-        po = questrade_api.place_order(account_id, symbol,
+        po = questrade_api.place_order(account_id, symbol_id,
                                        quantity, price, buy=buy)
-        if po['orders'][0]['rejectReason']:
+
+        if 'rejectReason' in po['orders'][0]:
             reason = po['orders'][0]['rejectReason']
             msg = "Order for {} ({} x {}) was rejected. Reason: {}"
             print(msg.format(symbol, quantity, price, reason))
             break
+
+        print("{} {} ({} x {}) -- Placed successfully".format(action, order['symbol'], quantity, price))
 
 
 def preview_order(order):
@@ -314,7 +317,7 @@ def something_rebalance(account_id, target_ratios, strategy=1, preview_only=Fals
         if not confirmed:
             print("Couldn't confirm confirmation. Stopping")
             exit(1)
-        place_orders(account_id, buy_orders)
+        place_orders(account_id, internal_symbols, buy_orders)
 
 
 description = \
