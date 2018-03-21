@@ -14,10 +14,31 @@ DEFAULT_TARGET_RATIOS_FILE = "target_ratios.json"
 
 # Please make sure each account adds to 100
 # or this script will not work correctly!
+
+# All symbols under a category will be combined.
+# The first will be prioritized for buying and the last for selling.
 sample_ratios = {
-    'Margin': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
-    'TFSA': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20},
-    'RRSP': {'VCN.TO': 40, 'XUU.TO': 40, 'XEF.TO': 20}
+    'Margin': {
+        'CanadianEquity'      : {'ratio': 30, 'symbols':['VCN.TO']},
+        'USEquity'            : {'ratio': 30, 'symbols':['XUU.TO']},
+        'InternationalEquity' : {'ratio': 23, 'symbols':['XEF.TO']},
+        'EmergingEquity'      : {'ratio': 7,  'symbols':['XEC.TO']},
+        'CanadianBonds'       : {'ratio': 10, 'symbols':['ZDB.TO']}
+    },
+    'RRSP': {
+        'CanadianEquity'      : {'ratio': 30, 'symbols':['VCN.TO']},
+        'USEquity'            : {'ratio': 30, 'symbols':['XUU.TO']},
+        'InternationalEquity' : {'ratio': 23, 'symbols':['XEF.TO']},
+        'EmergingEquity'      : {'ratio': 7,  'symbols':['XEC.TO']},
+        'CanadianBonds'       : {'ratio': 10, 'symbols':['ZAG.TO']}
+    },
+    'TFSA': {
+        'CanadianEquity'      : {'ratio': 30, 'symbols':['VCN.TO']},
+        'USEquity'            : {'ratio': 30, 'symbols':['XUU.TO']},
+        'InternationalEquity' : {'ratio': 23, 'symbols':['XEF.TO']},
+        'EmergingEquity'      : {'ratio': 7,  'symbols':['XEC.TO']},
+        'CanadianBonds'       : {'ratio': 10, 'symbols':['ZAG.TO']}
+    }
 }
 
 
@@ -48,6 +69,8 @@ def get_available_cash(account_id):
         if currency['currency'] == 'CAD':
             return currency['cash']
 
+def get_all_symbols(target_ratios):
+    return [sym for cat in target_ratios.values() for sym in cat['symbols']]
 
 def get_positions_value(account_id, symbols):
     # Initialize dict to have 0 for each symbol
@@ -57,7 +80,7 @@ def get_positions_value(account_id, symbols):
     for position in positions['positions']:
         symbol = position['symbol']
         if symbol in symbols:
-            value = position['currentMarketValue'] * 1.0
+            value = float(position['currentMarketValue'])
             positions_value[symbol] = value
             positions_total += value
     return positions_total, positions_value
@@ -83,27 +106,40 @@ def get_best_symbol(positions_total, target_ratios,
         diff = ratio1 - ratio2
         return diff ** 2
 
-    def calc_current_r2(symbol):
+    def calc_current_r2(position_info):
+        position = position_info['position']
+        symbol = position_info['to_buy']
         if positions_total == 0:
             current_ratio = 0.0
         else:
-            current_ratio = positions_value[symbol] / (positions_total * 1.0)
-        target_ratio = target_ratios[symbol] / 100.0
+            current_ratio = position / float(positions_total)
+        target_ratio = position_info['ratio'] / 100.0
         return calc_r2(current_ratio, target_ratio)
 
-    def calc_new_r2(symbol):
-        new_ratio = (positions_value[symbol] + symbol_quotes[symbol]) / \
-                    (positions_total + symbol_quotes[symbol] * 1.0)
-        target_ratio = target_ratios[symbol] / 100.0
+    def calc_new_r2(position_info):
+        position = position_info['position']
+        symbol = position_info['to_buy']
+        new_ratio = (position + symbol_quotes[symbol]) / \
+                    (positions_total + float(symbol_quotes[symbol]))
+        target_ratio = position_info['ratio'] / 100.0
         return calc_r2(new_ratio, target_ratio)
 
-    def calc_r2_diff(symbol):
-        curr_r2 = calc_current_r2(symbol)
-        new_r2 = calc_new_r2(symbol)
+    def calc_r2_diff(position_info):
+        curr_r2 = calc_current_r2(position_info)
+        new_r2 = calc_new_r2(position_info)
         return new_r2 - curr_r2
 
-    r2_diffs = {symbol: calc_r2_diff(symbol)
-                for symbol in positions_value.keys()}
+    position_info = []
+    for category_info in target_ratios.values():
+        category_value = sum([positions_value[symbol] for symbol in category_info['symbols']])
+        position_info.append(
+            {'position': category_value,
+             'ratio': category_info['ratio'],
+             'to_buy': category_info['symbols'][0],
+             'to_sell': category_info['symbols'][-1]})
+
+    r2_diffs = {category_info['to_buy']: calc_r2_diff(category_info)
+                for category_info in position_info}
     return min(r2_diffs, key=r2_diffs.get)
 
 
@@ -207,22 +243,33 @@ def place_orders(account_id, order_list):
 
 
 def preview_order(order):
+    action = order['action']
     symbol = order['symbol']
     quantity = order['quantity']
     price = order['price']
-    action = order['action']
-    print("{} {} ({} x {})".format(action, symbol, quantity, price))
+    total = quantity * price
+    fees = QUESTRADE_ECN * quantity
+    total_with_fees = total + fees
+    print("{} {} ({} x ${}) = ${} + ECN ${} = ${}".format(
+        action,
+        symbol,
+        quantity,
+        price,
+        round(total, 4),
+        round(fees, 4),
+        round(total_with_fees, 4)))
 
 
 def something_rebalance(account_id, target_ratios, strategy=1, preview_only=False):
     # Check if there are conflicting orders
-    symbols = target_ratios.keys()
+    symbols = get_all_symbols(target_ratios)
     if contains_open_conflicting_order(account_id, symbols, verbose=True):
         return
 
-    internal_symbols = get_internal_symbols(list(target_ratios.keys()))
     cash_total = get_available_cash(account_id) / DOLLAR_COST_AVERAGE
     positions_total, positions_value = get_positions_value(account_id, symbols)
+
+    internal_symbols = get_internal_symbols(symbols)
     symbol_quotes = get_symbol_quotes(list(internal_symbols.values()))
 
     # Get orders
@@ -241,8 +288,21 @@ def something_rebalance(account_id, target_ratios, strategy=1, preview_only=Fals
         buy_orders = []
 
     # Preview orders
+    cash_remaining = cash_total
+    total_spent = 0
     for order in buy_orders:
         preview_order(order)
+        spent = round(order['quantity'] * (order['price'] - QUESTRADE_ECN), 4)
+        cash_remaining -= spent
+        total_spent += spent
+
+    print("Total spent: ${}, Cash remaining: ${}".format(
+        round(total_spent, 4),
+        round(cash_remaining, 4)))
+
+    if cash_remaining < 0:
+        print("Negative cash remaining. Stopping.")
+        exit(1)
 
     # Place orders
     if not preview_only:

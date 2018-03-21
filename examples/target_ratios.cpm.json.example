@@ -1,0 +1,23 @@
+{
+    "Margin": {
+        "CanadianEquity"      : {"ratio": 30, "symbols":["VCN.TO"]},
+        "USEquity"            : {"ratio": 30, "symbols":["XUU.TO"]},
+        "InternationalEquity" : {"ratio": 23, "symbols":["XEF.TO"]},
+        "EmergingEquity"      : {"ratio": 7,  "symbols":["XEC.TO"]},
+        "CanadianBonds"       : {"ratio": 10, "symbols":["ZDB.TO"]}
+    },
+    "RRSP": {
+        "CanadianEquity"      : {"ratio": 30, "symbols":["VCN.TO"]},
+        "USEquity"            : {"ratio": 30, "symbols":["XUU.TO"]},
+        "InternationalEquity" : {"ratio": 23, "symbols":["XEF.TO"]},
+        "EmergingEquity"      : {"ratio": 7,  "symbols":["XEC.TO"]},
+        "CanadianBonds"       : {"ratio": 10, "symbols":["ZAG.TO"]}
+    },
+    "TFSA": {
+        "CanadianEquity"      : {"ratio": 30, "symbols":["VCN.TO"]},
+        "USEquity"            : {"ratio": 30, "symbols":["XUU.TO"]},
+        "InternationalEquity" : {"ratio": 23, "symbols":["XEF.TO"]},
+        "EmergingEquity"      : {"ratio": 7,  "symbols":["XEC.TO"]},
+        "CanadianBonds"       : {"ratio": 10, "symbols":["ZAG.TO"]}
+    }
+}

@@ -1,0 +1,17 @@
+{
+    "Margin": {
+        "CanadianEquity"      : {"ratio": 30, "symbols":["VCN.TO"]},
+        "WorldExCanadaEquity" : {"ratio": 30, "symbols":["XAW.TO"]},
+        "CanadianBonds"       : {"ratio": 10, "symbols":["ZAG.TO"]}
+    },
+    "RRSP": {
+        "CanadianEquity"      : {"ratio": 30, "symbols":["VCN.TO"]},
+        "WorldExCanadaEquity" : {"ratio": 30, "symbols":["XAW.TO"]},
+        "CanadianBonds"       : {"ratio": 10, "symbols":["ZAG.TO"]}
+    },
+    "TFSA": {
+        "CanadianEquity"      : {"ratio": 30, "symbols":["VCN.TO"]},
+        "WorldExCanadaEquity" : {"ratio": 30, "symbols":["XAW.TO"]},
+        "CanadianBonds"       : {"ratio": 10, "symbols":["ZAG.TO"]}
+    }
+}
